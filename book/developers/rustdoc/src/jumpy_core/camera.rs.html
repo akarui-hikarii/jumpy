@@ -196,6 +196,12 @@
 <span id="194">194</span>
 <span id="195">195</span>
 <span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::prelude::<span class="kw-2">*</span>;
 
 <span class="kw">pub fn </span>install(session: <span class="kw-2">&amp;mut </span>GameSession) {
@@ -261,8 +267,6 @@
         <span class="kw">return
     </span>};
 
-    <span class="kw">let </span>camera_pos = <span class="kw-2">&amp;mut </span>camera_shake.center;
-
     <span class="comment">// Update player camera rects
     </span><span class="kw">for </span>(_ent, (transform, player_idx, body)) <span class="kw">in
         </span>entities.iter_with((<span class="kw-2">&amp;</span>transforms, <span class="kw-2">&amp;</span>player_indexes, <span class="kw-2">&amp;</span>bodies))
@@ -271,6 +275,7 @@
 
         <span class="comment">// Get the player&#39;s camera box
         </span><span class="kw">let </span>camera_box = <span class="kw-2">&amp;mut </span>camera_state.player_camera_rects[player_idx.<span class="number">0</span>];
+
         <span class="comment">// If it&#39;s not be initialized.
         </span><span class="kw">if </span>camera_box.min == Vec2::ZERO &amp;&amp; camera_box.max == Vec2::ZERO {
             <span class="comment">// Set it&#39;s size and position according to the player
@@ -317,6 +322,7 @@
         .iter_with(<span class="kw-2">&amp;</span>player_indexes)
         .map(|x| x.<span class="number">1 </span>.<span class="number">0</span>)
         .collect();
+    <span class="kw">let </span>player_count = players.len();
 
     <span class="kw">for </span>player_idx <span class="kw">in </span>players {
         <span class="kw">let </span>rect = camera_state.player_camera_rects[player_idx];
@@ -328,7 +334,13 @@
         max.x = max.x.min(map_size.x)
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>middle_point = Rect { min, max }.center();
+    <span class="kw">let </span>camera_pos = <span class="kw-2">&amp;mut </span>camera_shake.center;
+
+    <span class="kw">let </span><span class="kw-2">mut </span>middle_point = <span class="kw">if </span>player_count == <span class="number">0 </span>{
+        camera_pos.truncate()
+    } <span class="kw">else </span>{
+        Rect { min, max }.center()
+    };
 
     <span class="kw">let </span>size = max - min;
     <span class="kw">let </span>size = size.max(meta.min_camera_size);
