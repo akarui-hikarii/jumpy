@@ -388,6 +388,8 @@
 <a href="#387" id="387">387</a>
 <a href="#388" id="388">388</a>
 <a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::prelude::<span class="kw-2">*</span>;
 
 <span class="kw">pub fn </span>install(session: <span class="kw-2">&amp;mut </span>GameSession) {
@@ -445,8 +447,7 @@
 
         <span class="kw">if let </span>BuiltinElementKind::Grenade {
             atlas,
-            body_size,
-            body_offset,
+            body_diameter,
             can_rotate,
             bounciness,
             ..
@@ -471,8 +472,9 @@
             bodies.insert(
                 entity,
                 KinematicBody {
-                    size: <span class="kw-2">*</span>body_size,
-                    offset: <span class="kw-2">*</span>body_offset,
+                    shape: ColliderShape::Circle {
+                        diameter: <span class="kw-2">*</span>body_diameter,
+                    },
                     has_mass: <span class="bool-val">true</span>,
                     has_friction: <span class="bool-val">true</span>,
                     can_rotate: <span class="kw-2">*</span>can_rotate,
@@ -591,7 +593,8 @@
             body.is_spawning = <span class="bool-val">true</span>;
 
             <span class="kw">let </span>transform = transforms.get_mut(entity).unwrap();
-            transform.translation = player_translation;
+            transform.translation =
+                player_translation + (<span class="kw-2">*</span>grab_offset * horizontal_flip_factor).extend(<span class="number">0.0</span>);
         }
     }
 }
@@ -712,7 +715,8 @@
             body.is_spawning = <span class="bool-val">true</span>;
 
             <span class="kw">let </span>transform = transforms.get_mut(entity).unwrap();
-            transform.translation = player_translation;
+            transform.translation =
+                player_translation + (<span class="kw-2">*</span>grab_offset * horizontal_flip_factor).extend(<span class="number">0.0</span>);
         }
 
         <span class="comment">// If it&#39;s time to explode
