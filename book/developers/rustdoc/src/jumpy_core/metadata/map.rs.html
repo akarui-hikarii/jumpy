@@ -78,15 +78,9 @@
 <a href="#77" id="77">77</a>
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
 </pre><pre class="rust"><code><span class="kw">use super</span>::<span class="kw-2">*</span>;
-<span class="attr">#[derive(BonesBevyAsset, Deserialize, Clone, TypeUlid, Debug)]
+
+<span class="attr">#[derive(BonesBevyAsset, Serialize, Deserialize, Clone, TypeUlid, Debug, Default)]
 #[ulid = <span class="string">&quot;01GP264BT87MAAHMEK52Y5P7BW&quot;</span>]
 #[asset_id = <span class="string">&quot;map&quot;</span>]
 #[serde(deny_unknown_fields)]
@@ -105,14 +99,14 @@
     </span><span class="kw">pub </span>layers: Vec&lt;MapLayerMeta&gt;,
 }
 
-<span class="attr">#[derive(BonesBevyAssetLoad, Deserialize, Clone, Debug, Default)]
+<span class="attr">#[derive(BonesBevyAssetLoad, Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(deny_unknown_fields)]
 </span><span class="kw">pub struct </span>BackgroundMeta {
     <span class="kw">pub </span>speed: Vec2,
     <span class="kw">pub </span>layers: Vec&lt;ParallaxLayerMeta&gt;,
 }
 
-<span class="attr">#[derive(BonesBevyAssetLoad, Deserialize, Clone, Debug, TypeUlid)]
+<span class="attr">#[derive(BonesBevyAssetLoad, Serialize, Deserialize, Clone, Debug, TypeUlid)]
 #[serde(deny_unknown_fields)]
 #[ulid = <span class="string">&quot;01GPP1QJFVQN3HYW4N7ZE3S89Y&quot;</span>]
 </span><span class="kw">pub struct </span>ParallaxLayerMeta {
@@ -124,52 +118,44 @@
     </span><span class="kw">pub </span>offset: Vec2,
 }
 
-<span class="attr">#[derive(BonesBevyAssetLoad, Deserialize, Clone, Debug)]
+<span class="attr">#[derive(BonesBevyAssetLoad, Serialize, Deserialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 </span><span class="kw">pub struct </span>MapLayerMeta {
     <span class="kw">pub </span>id: String,
-    <span class="kw">pub </span>kind: MapLayerKind,
-    <span class="attr">#[asset(deserialize_only)]
-    #[serde(skip)]
-    </span><span class="kw">pub </span>entity: <span class="prelude-ty">Option</span>&lt;Entity&gt;,
+    <span class="attr">#[serde(default)]
+    </span><span class="kw">pub </span>tilemap: <span class="prelude-ty">Option</span>&lt;Handle&lt;Atlas&gt;&gt;,
+    <span class="attr">#[serde(default)]
+    </span><span class="kw">pub </span>tiles: Vec&lt;MapTileMeta&gt;,
+    <span class="attr">#[serde(default)]
+    </span><span class="kw">pub </span>elements: Vec&lt;ElementSpawn&gt;,
 }
 
-<span class="attr">#[derive(BonesBevyAssetLoad, Deserialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
-</span><span class="kw">pub enum </span>MapLayerKind {
-    Tile(MapTileLayer),
-    Element(ElementLayer),
-}
-
-<span class="attr">#[derive(BonesBevyAssetLoad, Deserialize, Clone, Debug, Default)]
-#[serde(deny_unknown_fields)]
-</span><span class="kw">pub struct </span>MapTileLayer {
-    <span class="kw">pub </span>tilemap: Handle&lt;Atlas&gt;,
-    <span class="kw">pub </span>has_collision: bool,
-    <span class="kw">pub </span>tiles: Vec&lt;MapTileMeta&gt;,
-}
-
-<span class="attr">#[derive(BonesBevyAssetLoad, Deserialize, Clone, Debug, Default)]
-#[serde(deny_unknown_fields)]
-</span><span class="kw">pub struct </span>ElementLayer {
-    <span class="kw">pub </span>elements: Vec&lt;ElementSpawn&gt;,
-}
-
-<span class="attr">#[derive(BonesBevyAssetLoad, Deserialize, Clone, Debug, Default)]
+<span class="attr">#[derive(BonesBevyAssetLoad, Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(deny_unknown_fields)]
 </span><span class="kw">pub struct </span>ElementSpawn {
     <span class="kw">pub </span>pos: Vec2,
     <span class="kw">pub </span>element: Handle&lt;ElementMeta&gt;,
 }
 
-<span class="attr">#[derive(BonesBevyAssetLoad, Deserialize, Serialize, Clone, Debug)]
+<span class="attr">#[derive(BonesBevyAssetLoad, Serialize, Deserialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 </span><span class="kw">pub struct </span>MapTileMeta {
     <span class="kw">pub </span>pos: UVec2,
     <span class="kw">pub </span>idx: u32,
     <span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>jump_through: bool,
+}
+
+<span class="kw">impl </span>MapMeta {
+    <span class="doccomment">/// Checks if the given position is out of the bounds of the map.
+    </span><span class="kw">pub fn </span>is_out_of_bounds(<span class="kw-2">&amp;</span><span class="self">self</span>, pos: <span class="kw-2">&amp;</span>Vec3) -&gt; bool {
+        <span class="kw">const </span>KILL_ZONE_BORDER: f32 = <span class="number">500.0</span>;
+        <span class="kw">let </span>map_width = <span class="self">self</span>.grid_size.x <span class="kw">as </span>f32 * <span class="self">self</span>.tile_size.x;
+        <span class="kw">let </span>left_kill_zone = -KILL_ZONE_BORDER;
+        <span class="kw">let </span>right_kill_zone = map_width + KILL_ZONE_BORDER;
+        <span class="kw">let </span>bottom_kill_zone = -KILL_ZONE_BORDER;
+        pos.x &lt; left_kill_zone || pos.x &gt; right_kill_zone || pos.y &lt; bottom_kill_zone
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="jumpy_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0 (fc594f156 2023-01-24)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

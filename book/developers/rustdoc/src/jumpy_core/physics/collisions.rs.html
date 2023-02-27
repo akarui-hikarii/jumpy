@@ -838,6 +838,64 @@
 <a href="#837" id="837">837</a>
 <a href="#838" id="838">838</a>
 <a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Collision detection implementation.
 
 </span><span class="kw">use </span>::bevy::utils::{HashMap, HashSet};
@@ -1046,6 +1104,7 @@
 
         tile_layers: Comp&lt;<span class="lifetime">&#39;a</span>, TileLayer&gt;,
         tile_collision_kinds: Comp&lt;<span class="lifetime">&#39;a</span>, TileCollisionKind&gt;,
+        spawned_map_layer_metas: Comp&lt;<span class="lifetime">&#39;a</span>, SpawnedMapLayerMeta&gt;,
     }
 }
 
@@ -1148,6 +1207,8 @@
         </span>Tq: QueryItem,
         Tq::Iter: Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span>Transform&gt;,
     {
+        <span class="macro">puffin::profile_function!</span>();
+
         <span class="self">self</span>.sync_colliders(transforms);
 
         <span class="kw">let </span>RapierContext {
@@ -1182,6 +1243,7 @@
                 </span>to_delete.push(handle);
             }
         }
+
         <span class="kw">for </span>body_handle <span class="kw">in </span>to_delete {
             rigid_body_set.remove(
                 body_handle,
@@ -1194,16 +1256,25 @@
         }
 
         <span class="comment">// Update the collision pipeline
-        </span>collision_pipeline.step(
-            <span class="number">0.0</span>,
-            broad_phase,
-            narrow_phase,
-            rigid_body_set,
-            collider_set,
-            <span class="prelude-val">Some</span>(query_pipeline),
-            <span class="kw-2">&amp;</span>(),
-            <span class="kw-2">&amp;</span>collision_cache,
-        )
+        </span>{
+            <span class="macro">puffin::profile_scope!</span>(<span class="string">&quot;Collision Pipeline Step&quot;</span>);
+            collision_pipeline.step(
+                <span class="number">0.0</span>,
+                broad_phase,
+                narrow_phase,
+                rigid_body_set,
+                collider_set,
+                <span class="prelude-val">None</span>,
+                <span class="kw-2">&amp;</span>(),
+                <span class="kw-2">&amp;</span>collision_cache,
+            );
+        }
+
+        <span class="comment">// Update the query pipeline
+        </span>{
+            <span class="macro">puffin::profile_scope!</span>(<span class="string">&quot;Query Pipeline Update&quot;</span>);
+            query_pipeline.update(rigid_body_set, collider_set);
+        }
     }
 
     <span class="doccomment">/// Sync the transforms and attributes ( like `disabled` ) of the colliders. ( Does not update
@@ -1213,6 +1284,8 @@
         </span>Tq: QueryItem,
         Tq::Iter: Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span>Transform&gt;,
     {
+        <span class="macro">puffin::profile_function!</span>();
+
         <span class="kw">let </span>RapierContext {
             rigid_body_set,
             collider_set,
@@ -1259,18 +1332,36 @@
         }
     }
 
-    <span class="doccomment">/// Update the collisions for map tiles.
+    <span class="doccomment">/// Update all of the map tile collisions.
     ///
-    /// This should only be called when the map tiles have been changed, which should be relatively
-    /// uncommon.
+    /// You should only need to call this when spawning or otherwise completely rebuilding the map
+    /// layout.
     </span><span class="kw">pub fn </span>update_tiles(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.update_tiles_with_filter(|<span class="kw">_</span>, <span class="kw">_</span>| <span class="bool-val">true</span>);
+    }
+
+    <span class="doccomment">/// Update the collision for the tile with the given layer index and map grid position.
+    </span><span class="kw">pub fn </span>update_tile(<span class="kw-2">&amp;mut </span><span class="self">self</span>, layer_idx: usize, pos: UVec2) {
+        <span class="self">self</span>.update_tiles_with_filter(|idx, p| layer_idx == idx &amp;&amp; pos == p);
+    }
+
+    <span class="doccomment">/// Update the collisions for map tiles that pass the given filter.
+    ///
+    /// The filter is a function that takes the layer index and the tile position as an argument.
+    </span><span class="kw">pub fn </span>update_tiles_with_filter&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>filter: F)
+    <span class="kw">where
+        </span>F: FnMut(usize, UVec2) -&gt; bool,
+    {
         <span class="kw">let </span>RapierContext {
             rigid_body_set,
             collider_set,
             collider_shape_cache,
             ..
         } = <span class="kw-2">&amp;mut *</span><span class="self">self</span>.ctx;
-        <span class="kw">for </span>(entity, layer) <span class="kw">in </span><span class="self">self</span>.entities.iter_with(<span class="kw-2">&amp;</span><span class="self">self</span>.tile_layers) {
+        <span class="kw">for </span>(<span class="kw">_</span>, (layer, meta)) <span class="kw">in </span><span class="self">self
+            </span>.entities
+            .iter_with((<span class="kw-2">&amp;</span><span class="self">self</span>.tile_layers, <span class="kw-2">&amp;</span><span class="self">self</span>.spawned_map_layer_metas))
+        {
             <span class="kw">let </span>bones_shape = ColliderShape::Rectangle {
                 size: layer.tile_size,
             };
@@ -1278,7 +1369,12 @@
 
             <span class="kw">for </span>x <span class="kw">in </span><span class="number">0</span>..layer.grid_size.x {
                 <span class="kw">for </span>y <span class="kw">in </span><span class="number">0</span>..layer.grid_size.y {
-                    <span class="kw">let </span><span class="prelude-val">Some</span>(tile_ent) = layer.get(uvec2(x, y)) <span class="kw">else </span>{
+                    <span class="kw">let </span>pos = uvec2(x, y);
+                    <span class="kw">if </span>!filter(meta.layer_idx, pos) {
+                        <span class="kw">continue</span>;
+                    };
+
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(tile_ent) = layer.get(pos) <span class="kw">else </span>{
                         <span class="kw">continue</span>;
                     };
                     <span class="kw">let </span>collider_x = x <span class="kw">as </span>f32 * layer.tile_size.x + layer.tile_size.x / <span class="number">2.0</span>;
@@ -1287,7 +1383,7 @@
                     <span class="comment">// Get or create a collider for the tile
                     </span><span class="kw">let </span>handle = <span class="self">self
                         </span>.tile_rapier_handles
-                        .get(entity)
+                        .get(tile_ent)
                         .map(|x| <span class="kw-2">**</span>x)
                         .unwrap_or_else(|| {
                             <span class="kw">let </span>body_handle = rigid_body_set.insert(
@@ -1370,6 +1466,8 @@
         entity: Entity,
         <span class="kw-2">mut </span>dy: f32,
     ) -&gt; bool {
+        <span class="macro">puffin::profile_function!</span>();
+
         <span class="kw">let </span>RapierContext {
             query_pipeline,
             collider_set,
@@ -1460,26 +1558,29 @@
         transform.translation.y += movement - <span class="kw">if </span>collided { <span class="number">0.1 </span>* dy.signum() } <span class="kw">else </span>{ <span class="number">0.0 </span>};
 
         <span class="comment">// Final check, if we are out of woods after the move - reset wood flags
-        </span><span class="kw">let </span>is_in_jump_through = query_pipeline
-            .intersection_with_shape(
-                rigid_body_set,
-                collider_set,
-                <span class="kw-2">&amp;</span>(
-                    transform.translation.truncate(),
-                    transform.rotation.to_euler(EulerRot::XYZ).<span class="number">2</span>,
+        </span>{
+            <span class="macro">puffin::profile_scope!</span>(<span class="string">&quot;out of woods check&quot;</span>);
+            <span class="kw">let </span>is_in_jump_through = query_pipeline
+                .intersection_with_shape(
+                    rigid_body_set,
+                    collider_set,
+                    <span class="kw-2">&amp;</span>(
+                        transform.translation.truncate(),
+                        transform.rotation.to_euler(EulerRot::XYZ).<span class="number">2</span>,
+                    )
+                        .into(),
+                    <span class="kw-2">&amp;**</span>shape,
+                    rapier::QueryFilter::new().predicate(<span class="kw-2">&amp;</span>|_handle, collider| {
+                        <span class="kw">let </span>ent = RapierUserData::entity(collider.user_data);
+                        <span class="self">self</span>.tile_collision_kinds.get(ent) == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>TileCollisionKind::JUMP_THROUGH)
+                    }),
                 )
-                    .into(),
-                <span class="kw-2">&amp;**</span>shape,
-                rapier::QueryFilter::new().predicate(<span class="kw-2">&amp;</span>|_handle, collider| {
-                    <span class="kw">let </span>ent = RapierUserData::entity(collider.user_data);
-                    <span class="self">self</span>.tile_collision_kinds.get(ent) == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>TileCollisionKind::JUMP_THROUGH)
-                }),
-            )
-            .is_some();
+                .is_some();
 
-        <span class="kw">if </span>!is_in_jump_through {
-            collider.seen_wood = <span class="bool-val">false</span>;
-            collider.descent = <span class="bool-val">false</span>;
+            <span class="kw">if </span>!is_in_jump_through {
+                collider.seen_wood = <span class="bool-val">false</span>;
+                collider.descent = <span class="bool-val">false</span>;
+            }
         }
 
         collided
@@ -1493,6 +1594,8 @@
         entity: Entity,
         <span class="kw-2">mut </span>dx: f32,
     ) -&gt; bool {
+        <span class="macro">puffin::profile_function!</span>();
+
         <span class="kw">let </span>RapierContext {
             query_pipeline,
             collider_set,
@@ -1519,26 +1622,29 @@
         <span class="kw">let </span>collided = <span class="lifetime">&#39;collision</span>: <span class="kw">loop </span>{
             <span class="comment">// Do a shape cast in the direction of movement
             </span><span class="kw">let </span>velocity = rapier::Vector::new(dx, <span class="number">0.0</span>);
-            <span class="kw">let </span>collision = query_pipeline.cast_shape(
-                rigid_body_set,
-                collider_set,
-                <span class="kw-2">&amp;</span>position,
-                <span class="kw-2">&amp;</span>velocity,
-                <span class="kw-2">&amp;**</span>shape,
-                <span class="number">1.0</span>,
-                <span class="bool-val">true</span>,
-                rapier::QueryFilter::new().predicate(<span class="kw-2">&amp;</span>|_handle, rapier_collider| {
-                    <span class="kw">let </span>ent = RapierUserData::entity(rapier_collider.user_data);
+            <span class="kw">let </span>collision = {
+                <span class="macro">puffin::profile_scope!</span>(<span class="string">&quot;cast shape&quot;</span>);
+                query_pipeline.cast_shape(
+                    rigid_body_set,
+                    collider_set,
+                    <span class="kw-2">&amp;</span>position,
+                    <span class="kw-2">&amp;</span>velocity,
+                    <span class="kw-2">&amp;**</span>shape,
+                    <span class="number">1.0</span>,
+                    <span class="bool-val">true</span>,
+                    rapier::QueryFilter::new().predicate(<span class="kw-2">&amp;</span>|_handle, rapier_collider| {
+                        <span class="kw">let </span>ent = RapierUserData::entity(rapier_collider.user_data);
 
-                    <span class="kw">let </span><span class="prelude-val">Some</span>(tile_kind) = <span class="self">self</span>.tile_collision_kinds.get(ent) <span class="kw">else </span>{
+                        <span class="kw">let </span><span class="prelude-val">Some</span>(tile_kind) = <span class="self">self</span>.tile_collision_kinds.get(ent) <span class="kw">else </span>{
                         <span class="comment">// Ignore non-tile collisions
                         </span><span class="kw">return </span><span class="bool-val">false</span>;
                     };
 
-                    <span class="comment">// Ignore jump-through tiles if we have already seen wood.
-                    </span>!(collider.seen_wood &amp;&amp; <span class="kw-2">*</span>tile_kind == TileCollisionKind::JUMP_THROUGH)
-                }),
-            );
+                        <span class="comment">// Ignore jump-through tiles if we have already seen wood.
+                        </span>!(collider.seen_wood &amp;&amp; <span class="kw-2">*</span>tile_kind == TileCollisionKind::JUMP_THROUGH)
+                    }),
+                )
+            };
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>((handle, toi)) = collision {
                 <span class="kw">let </span>ent = RapierUserData::entity(collider_set.get(handle).unwrap().user_data);
@@ -1577,51 +1683,61 @@
         transform.translation.x += movement - <span class="kw">if </span>collided { <span class="number">0.1 </span>* dx.signum() } <span class="kw">else </span>{ <span class="number">0.0 </span>};
 
         <span class="comment">// Final check, if we are out of woods after the move - reset wood flags
-        </span><span class="kw">let </span>is_in_jump_through = query_pipeline
-            .intersection_with_shape(
-                rigid_body_set,
-                collider_set,
-                <span class="kw-2">&amp;</span>(
-                    transform.translation.truncate(),
-                    transform.rotation.to_euler(EulerRot::XYZ).<span class="number">2</span>,
+        </span>{
+            <span class="macro">puffin::profile_scope!</span>(<span class="string">&quot;out of woods check&quot;</span>);
+            <span class="kw">let </span>is_in_jump_through = query_pipeline
+                .intersection_with_shape(
+                    rigid_body_set,
+                    collider_set,
+                    <span class="kw-2">&amp;</span>(
+                        transform.translation.truncate(),
+                        transform.rotation.to_euler(EulerRot::XYZ).<span class="number">2</span>,
+                    )
+                        .into(),
+                    <span class="kw-2">&amp;**</span>shape,
+                    rapier::QueryFilter::new().predicate(<span class="kw-2">&amp;</span>|_handle, collider| {
+                        <span class="kw">let </span>ent = RapierUserData::entity(collider.user_data);
+                        <span class="self">self</span>.tile_collision_kinds.get(ent) == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>TileCollisionKind::JUMP_THROUGH)
+                    }),
                 )
-                    .into(),
-                <span class="kw-2">&amp;**</span>shape,
-                rapier::QueryFilter::new().predicate(<span class="kw-2">&amp;</span>|_handle, collider| {
-                    <span class="kw">let </span>ent = RapierUserData::entity(collider.user_data);
-                    <span class="self">self</span>.tile_collision_kinds.get(ent) == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>TileCollisionKind::JUMP_THROUGH)
-                }),
-            )
-            .is_some();
+                .is_some();
 
-        <span class="kw">if </span>!is_in_jump_through {
-            collider.seen_wood = <span class="bool-val">false</span>;
-            collider.descent = <span class="bool-val">false</span>;
+            <span class="kw">if </span>!is_in_jump_through {
+                collider.seen_wood = <span class="bool-val">false</span>;
+                collider.descent = <span class="bool-val">false</span>;
+            }
         }
 
         collided
     }
 
     <span class="doccomment">/// Returns whether or not there is a tile or solid at the given position.
+    ///
+    /// &gt; ⚠️ **Warning:** There is a slight difference to how `tile_collision_point` and
+    /// &gt; [`tile_collision`][Self::tile_collision] reports collisions.
+    /// &gt;
+    /// &gt; [`tile_collision`][Self::tile_collision] will report a collision if the collider shape is
+    /// &gt; perfectly lined up along the edge of a tile, but `tile_collision_point` won&#39;t.
     </span><span class="attr">#[allow(unused)]
     </span><span class="kw">pub fn </span>solid_at(<span class="kw-2">&amp;</span><span class="self">self</span>, pos: Vec2) -&gt; bool {
         <span class="self">self</span>.tile_collision_point(pos) == TileCollisionKind::SOLID
     }
 
     <span class="doccomment">/// Returns the tile collision at the given point.
+    ///
+    /// &gt; ⚠️ **Warning:** There is a slight difference to how `tile_collision_point` and
+    /// &gt; [`tile_collision`][Self::tile_collision] reports collisions.
+    /// &gt;
+    /// &gt; [`tile_collision`][Self::tile_collision] will report a collision if the collider shape is
+    /// &gt; perfectly lined up along the edge of a tile, but `tile_collision_point` won&#39;t.
     </span><span class="attr">#[allow(unused)]
     </span><span class="kw">pub fn </span>tile_collision_point(<span class="kw-2">&amp;</span><span class="self">self</span>, pos: Vec2) -&gt; TileCollisionKind {
         <span class="kw">for </span>(entity, tile_layer) <span class="kw">in </span><span class="self">self</span>.entities.iter_with(<span class="kw-2">&amp;</span><span class="self">self</span>.tile_layers) {
-            <span class="kw">let </span>TileLayer {
-                tiles,
-                grid_size,
-                tile_size,
-                ..
-            } = tile_layer;
+            <span class="kw">let </span>TileLayer { tile_size, .. } = tile_layer;
 
-            <span class="kw">let </span>x = (pos.x / tile_size.y) <span class="kw">as </span>i32;
-            <span class="kw">let </span>y = (pos.y / tile_size.x) <span class="kw">as </span>i32;
-            <span class="kw">let </span>tile_entity = tile_layer.get(UVec2::new(x <span class="kw">as _</span>, y <span class="kw">as _</span>));
+            <span class="kw">let </span>x = (pos.x / tile_size.y).floor() <span class="kw">as </span>u32;
+            <span class="kw">let </span>y = (pos.y / tile_size.x).floor() <span class="kw">as </span>u32;
+            <span class="kw">let </span>tile_entity = tile_layer.get(UVec2::new(x, y));
             <span class="kw">if let </span><span class="prelude-val">Some</span>(tile_entity) = tile_entity {
                 <span class="kw">return </span><span class="self">self
                     </span>.tile_collision_kinds

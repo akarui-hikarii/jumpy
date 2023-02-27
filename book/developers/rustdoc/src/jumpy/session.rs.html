@@ -144,7 +144,75 @@
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
-</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::prelude::<span class="kw-2">*</span>;
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+</pre><pre class="rust"><code><span class="kw">use </span>bevy::{ecs::schedule::ShouldRun, utils::Instant};
+
+<span class="kw">use </span><span class="kw">crate</span>::prelude::<span class="kw-2">*</span>;
 
 <span class="kw">pub struct </span>JumpySessionPlugin;
 
@@ -159,10 +227,16 @@
     <span class="kw">fn </span>build(<span class="kw-2">&amp;</span><span class="self">self</span>, app: <span class="kw-2">&amp;mut </span>App) {
         app.add_plugin(bones_bevy_renderer::BonesRendererPlugin::&lt;Session&gt;::with_sync_time(<span class="bool-val">false</span>))
             .add_plugin(jumpy_core::metadata::JumpyCoreAssetsPlugin)
+            .init_resource::&lt;CurrentEditorInput&gt;()
             .add_stage_before(
                 CoreStage::Update,
                 SessionStage::Update,
                 SystemStage::single_threaded()
+                    .with_system(
+                        ensure_2_players
+                            .run_in_state(EngineState::InGame)
+                            .run_in_state(InGameState::Playing),
+                    )
                     .with_system(update_input)
                     .with_system(
                         update_game
@@ -170,8 +244,39 @@
                             .run_in_state(InGameState::Playing),
                     )
                     .with_system(play_sounds)
-                    .with_run_criteria(FixedTimestep::step(<span class="number">1.0 </span>/ jumpy_core::FPS <span class="kw">as </span>f64)),
+                    .with_run_criteria(fixed_timestep),
             );
+    }
+}
+
+<span class="kw">fn </span>fixed_timestep(
+    <span class="kw-2">mut </span>accumulator: Local&lt;f64&gt;,
+    <span class="kw-2">mut </span>loop_start: Local&lt;<span class="prelude-ty">Option</span>&lt;Instant&gt;&gt;,
+    time: Res&lt;Time&gt;,
+) -&gt; ShouldRun {
+    <span class="kw">const </span>STEP: f64 = <span class="number">1.0 </span>/ jumpy_core::FPS <span class="kw">as </span>f64;
+    <span class="kw">let </span>delta = time.delta_seconds_f64();
+    <span class="kw">if </span>loop_start.is_none() {
+        <span class="kw-2">*</span>accumulator += delta;
+    }
+
+    <span class="kw">if </span><span class="kw-2">*</span>accumulator &gt;= STEP {
+        <span class="kw">let </span>start = loop_start.get_or_insert_with(Instant::now);
+
+        <span class="kw">let </span>loop_too_long = (Instant::now() - <span class="kw-2">*</span>start).as_secs_f64() &gt; STEP;
+
+        <span class="kw">if </span>loop_too_long {
+            <span class="macro">warn!</span>(<span class="string">&quot;Frame took too long: couldn&#39;t keep up with fixed update.&quot;</span>);
+            <span class="kw-2">*</span>accumulator = <span class="number">0.0</span>;
+            <span class="kw-2">*</span>loop_start = <span class="prelude-val">None</span>;
+            ShouldRun::No
+        } <span class="kw">else </span>{
+            <span class="kw-2">*</span>accumulator -= STEP;
+            ShouldRun::YesAndCheckAgain
+        }
+    } <span class="kw">else </span>{
+        <span class="kw-2">*</span>loop_start = <span class="prelude-val">None</span>;
+        ShouldRun::No
     }
 }
 
@@ -189,9 +294,10 @@
 <span class="doccomment">/// Helper for creating and stopping game sessions.
 </span><span class="attr">#[derive(SystemParam)]
 </span><span class="kw">pub struct </span>SessionManager&lt;<span class="lifetime">&#39;w</span>, <span class="lifetime">&#39;s</span>&gt; {
-    commands: Commands&lt;<span class="lifetime">&#39;w</span>, <span class="lifetime">&#39;s</span>&gt;,
-    menu_camera: Query&lt;<span class="lifetime">&#39;w</span>, <span class="lifetime">&#39;s</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span><span class="kw-2">mut </span>Camera, With&lt;MenuCamera&gt;&gt;,
-    session: <span class="prelude-ty">Option</span>&lt;ResMut&lt;<span class="lifetime">&#39;w</span>, Session&gt;&gt;,
+    <span class="kw">pub </span>commands: Commands&lt;<span class="lifetime">&#39;w</span>, <span class="lifetime">&#39;s</span>&gt;,
+    <span class="kw">pub </span>menu_camera: Query&lt;<span class="lifetime">&#39;w</span>, <span class="lifetime">&#39;s</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span><span class="kw-2">mut </span>Camera, With&lt;MenuCamera&gt;&gt;,
+    <span class="kw">pub </span>session: <span class="prelude-ty">Option</span>&lt;ResMut&lt;<span class="lifetime">&#39;w</span>, Session&gt;&gt;,
+    <span class="kw">pub </span>core_meta_arc: Res&lt;<span class="lifetime">&#39;w</span>, CoreMetaArc&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;w</span>, <span class="lifetime">&#39;s</span>&gt; SessionManager&lt;<span class="lifetime">&#39;w</span>, <span class="lifetime">&#39;s</span>&gt; {
@@ -216,16 +322,42 @@
     }
 }
 
+<span class="doccomment">/// Helper system to make sure there are two players on the board, if ever the game is in the middle
+/// of playing and there are no players on the board.
+///
+/// This is primarily for the editor, which may be started without going through the player
+/// selection screen.
+</span><span class="kw">fn </span>ensure_2_players(session: <span class="prelude-ty">Option</span>&lt;ResMut&lt;Session&gt;&gt;, core_meta: Res&lt;CoreMetaArc&gt;) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(session) = session {
+        <span class="kw">let </span>player_inputs = session.world.resource::&lt;jumpy_core::input::PlayerInputs&gt;();
+        <span class="kw">let </span><span class="kw-2">mut </span>player_inputs = player_inputs.borrow_mut();
+
+        <span class="kw">if </span>player_inputs.players.iter().all(|x| !x.active) {
+            <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
+                player_inputs.players[i].active = <span class="bool-val">true</span>;
+                player_inputs.players[i].selected_player = core_meta.players[i].clone();
+            }
+        }
+    }
+}
+
 <span class="doccomment">/// Update the input to the game session.
 </span><span class="kw">fn </span>update_input(
     session: <span class="prelude-ty">Option</span>&lt;ResMut&lt;Session&gt;&gt;,
     player_input_collectors: Query&lt;(<span class="kw-2">&amp;</span>PlayerInputCollector, <span class="kw-2">&amp;</span>ActionState&lt;PlayerAction&gt;)&gt;,
+    <span class="kw-2">mut </span>current_editor_input: ResMut&lt;CurrentEditorInput&gt;,
 ) {
     <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>session) = session <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
 
+    <span class="kw">let </span><span class="kw-2">mut </span>editor_input = current_editor_input.take();
+
     session.update_input(|inputs| {
+        <span class="comment">// TODO: Properly handle which player is taking the editor input, which is important in
+        // networked multiplayer.
+        </span>inputs.players[<span class="number">0</span>].editor_input = editor_input.take();
+
         <span class="kw">for </span>(player_idx, action_state) <span class="kw">in </span><span class="kw-2">&amp;</span>player_input_collectors {
             <span class="kw">let </span>control = <span class="kw-2">&amp;mut </span>inputs.players[player_idx.<span class="number">0</span>].control;
 
