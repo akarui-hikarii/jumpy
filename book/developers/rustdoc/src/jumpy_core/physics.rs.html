@@ -286,6 +286,7 @@
 <a href="#285" id="285">285</a>
 <a href="#286" id="286">286</a>
 <a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::prelude::<span class="kw-2">*</span>;
 
 <span class="kw">pub use </span>collisions::{
@@ -430,7 +431,7 @@
             </span><span class="kw">loop </span>{
                 <span class="kw">let </span><span class="kw-2">mut </span>transform = transforms.get(entity).copied().unwrap();
 
-                <span class="kw">if </span>collision_world.tile_collision(transform, body.shape) != TileCollisionKind::SOLID
+                <span class="kw">if </span>collision_world.tile_collision(transform, body.shape) != TileCollisionKind::Solid
                 {
                     <span class="kw">break</span>;
                 }
@@ -451,10 +452,11 @@
                     </span>(<span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>) =&gt; {
                         <span class="comment">// For some reason the `tile_collision` test did detect a collision, but
                         // `solid_at` did not detect a collision at any of the corners of the aabb.
-                        </span><span class="macro">panic!</span>(
+                        </span><span class="macro">warn!</span>(
                             <span class="string">&quot;Collision test error resulting in physics \
                             body stuck in wall at {rect:?}&quot;</span>,
                         );
+                        <span class="kw">break</span>;
                     }
                     <span class="comment">// Check for collisions on each side of the rectangle
                     </span>(<span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="kw">_</span>, <span class="kw">_</span>) =&gt; transform.translation.y += <span class="number">1.0</span>,
@@ -508,8 +510,8 @@
 
             <span class="kw">let </span>tile = collision_world.tile_collision(transform, body.shape);
 
-            <span class="kw">let </span>on_jump_through_tile = tile == TileCollisionKind::JUMP_THROUGH;
-            body.is_on_ground = tile != TileCollisionKind::EMPTY
+            <span class="kw">let </span>on_jump_through_tile = tile == TileCollisionKind::JumpThrough;
+            body.is_on_ground = tile != TileCollisionKind::Empty
                 &amp;&amp; !collision_world.get_collider(entity).seen_wood
                 &amp;&amp; !(on_jump_through_tile &amp;&amp; body.fall_through);
             body.is_on_platform = body.is_on_ground &amp;&amp; on_jump_through_tile;
