@@ -67,19 +67,31 @@
 <a href="#66" id="66">66</a>
 <a href="#67" id="67">67</a>
 <a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::prelude::<span class="kw-2">*</span>;
 
 <span class="kw">pub mod </span>crab;
 <span class="kw">pub mod </span>crate_item;
 <span class="kw">pub mod </span>decoration;
+<span class="kw">pub mod </span>fish_school;
 <span class="kw">pub mod </span>grenade;
 <span class="kw">pub mod </span>kick_bomb;
 <span class="kw">pub mod </span>mine;
 <span class="kw">pub mod </span>musket;
 <span class="kw">pub mod </span>player_spawner;
+<span class="kw">pub mod </span>slippery_seaweed;
+<span class="kw">pub mod </span>snail;
 <span class="kw">pub mod </span>sproinger;
 <span class="kw">pub mod </span>stomp_boots;
 <span class="kw">pub mod </span>sword;
+<span class="kw">pub mod </span>urchin;
 
 <span class="doccomment">/// Marker component added to map elements that have been hydrated.
 </span><span class="attr">#[derive(Clone, TypeUlid)]
@@ -106,16 +118,20 @@
         .add_system_to_stage(CoreStage::First, handle_out_of_bounds_items);
 
     decoration::install(session);
+    urchin::install(session);
     player_spawner::install(session);
     sproinger::install(session);
     sword::install(session);
     grenade::install(session);
     crab::install(session);
+    snail::install(session);
+    fish_school::install(session);
     kick_bomb::install(session);
     mine::install(session);
     musket::install(session);
     stomp_boots::install(session);
     crate_item::install(session);
+    slippery_seaweed::install(session);
 }
 
 <span class="kw">fn </span>handle_out_of_bounds_items(
