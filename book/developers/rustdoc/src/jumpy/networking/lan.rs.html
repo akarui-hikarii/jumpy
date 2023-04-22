@@ -490,71 +490,15 @@
 <a href="#489" id="489">489</a>
 <a href="#490" id="490">490</a>
 <a href="#491" id="491">491</a>
-<a href="#492" id="492">492</a>
-<a href="#493" id="493">493</a>
-<a href="#494" id="494">494</a>
-<a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
-<a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
-<a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 <span class="kw">use </span>bevy::tasks::IoTaskPool;
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>futures_lite::{future, FutureExt};
-<span class="kw">use </span>jumpy_core::input::PlayerControl;
 
-<span class="kw">use super</span>::{
-    proto::{DenseMoveDirection, DensePlayerControl},
-    <span class="kw-2">*</span>,
-};
+<span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-<span class="kw">pub const </span>NETWORK_FRAME_RATE_FACTOR: f32 = <span class="number">0.75</span>;
+<span class="kw">pub const </span>NETWORK_FRAME_RATE_FACTOR: f32 = <span class="number">0.9</span>;
 
 <span class="doccomment">/// Channel used to do matchmaking over LAN.
 ///
@@ -574,12 +518,11 @@
     <span class="attr">#[derive(Serialize, Deserialize)]
     </span><span class="kw">enum </span>MatchmakerNetMsg {
         MatchReady {
-            <span class="doccomment">/// The random seed t use the for the match.
-            </span>random_seed: u64,
             <span class="doccomment">/// The peers they have for the match, with the index in the array being the player index of the peer.
-            </span>peers: [<span class="prelude-ty">Option</span>&lt;SocketAddrV4&gt;; MAX_PLAYERS - <span class="number">1</span>],
+            </span>peers: [<span class="prelude-ty">Option</span>&lt;SocketAddrV4&gt;; MAX_PLAYERS],
             <span class="doccomment">/// The player index of the player getting the message.
             </span>player_idx: usize,
+            player_count: usize,
         },
     }
 
@@ -651,16 +594,16 @@
 
                         <span class="comment">// Tell all clients we&#39;re ready
                         </span><span class="kw">for </span>(i, conn) <span class="kw">in </span>connections.iter().enumerate() {
-                            <span class="kw">let </span><span class="kw-2">mut </span>peers = [<span class="prelude-val">None</span>; MAX_PLAYERS - <span class="number">1</span>];
+                            <span class="kw">let </span><span class="kw-2">mut </span>peers = [<span class="prelude-val">None</span>; MAX_PLAYERS];
                             connections
                                 .iter()
                                 .enumerate()
                                 .filter(|x| x.<span class="number">0 </span>!= i)
                                 .for_each(|(i, conn)| {
                                     <span class="kw">if let </span>SocketAddr::V4(addr) = conn.remote_address() {
-                                        peers[i] = <span class="prelude-val">Some</span>(addr);
+                                        peers[i + <span class="number">1</span>] = <span class="prelude-val">Some</span>(addr);
                                     } <span class="kw">else </span>{
-                                        <span class="macro">unreachable!</span>(<span class="string">&quot;IPV6 not support in lan matchmaking&quot;</span>);
+                                        <span class="macro">unreachable!</span>(<span class="string">&quot;IPV6 not supported in LAN matchmaking&quot;</span>);
                                     };
                                 });
 
@@ -668,8 +611,8 @@
                             uni.write_all(
                                 <span class="kw-2">&amp;</span>postcard::to_vec::&lt;<span class="kw">_</span>, <span class="number">20</span>&gt;(<span class="kw-2">&amp;</span>MatchmakerNetMsg::MatchReady {
                                     player_idx: i + <span class="number">1</span>,
-                                    random_seed: <span class="number">0</span>, <span class="comment">// TODO: random random seed.
-                                    </span>peers,
+                                    peers,
+                                    player_count,
                                 })
                                 .unwrap(),
                             )
@@ -690,10 +633,12 @@
                         <span class="comment">// Send the connections to the game so that it can start the network match.
                         </span>matchmaker_channel
                             .try_send(LanMatchmakerResponse::GameStarting {
-                                lan_socket: LanSocket::new(connections),
+                                lan_socket: LanSocket::new(<span class="number">0</span>, connections),
                                 player_idx: <span class="number">0</span>,
+                                player_count,
                             })
                             .ok();
+                        <span class="macro">info!</span>(player_idx=<span class="number">0</span>, %player_count, <span class="string">&quot;Matchmaking finished&quot;</span>);
 
                         <span class="comment">// Break out of the server loop
                         </span><span class="kw">break</span>;
@@ -728,32 +673,69 @@
 
                 <span class="kw">match </span>message {
                     MatchmakerNetMsg::MatchReady {
-                        random_seed: <span class="kw">_</span>, <span class="comment">// TODO: use random seed
-                        </span>peers: other_peers,
+                        peers: peer_addrs,
                         player_idx,
+                        player_count,
                     } =&gt; {
-                        <span class="kw">let </span><span class="kw-2">mut </span>peers = std::array::from_fn(|<span class="kw">_</span>| <span class="prelude-val">None</span>);
-                        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..MAX_PLAYERS {
-                            peers[i] = <span class="kw">if </span>i == <span class="number">0 </span>{
-                                <span class="prelude-val">Some</span>(conn.clone())
-                            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(addr) = other_peers[i - <span class="number">1</span>] {
-                                <span class="kw">let </span>conn = NETWORK_ENDPOINT
-                                    .connect(addr.into(), <span class="string">&quot;jumpy-peer&quot;</span>)
-                                    .unwrap()
-                                    .<span class="kw">await
-                                    </span>.expect(<span class="string">&quot;Could not connect to peer&quot;</span>);
+                        <span class="macro">info!</span>(%player_count, %player_idx, <span class="question-mark">?</span>peer_addrs, <span class="string">&quot;Matchmaking finished&quot;</span>);
+                        <span class="kw">let </span><span class="kw-2">mut </span>peer_connections = std::array::from_fn(|<span class="kw">_</span>| <span class="prelude-val">None</span>);
 
-                                <span class="prelude-val">Some</span>(conn)
-                            } <span class="kw">else </span>{
-                                <span class="prelude-val">None
-                            </span>};
+                        <span class="comment">// Set the connection to the matchmaker for player 0
+                        </span>peer_connections[<span class="number">0</span>] = <span class="prelude-val">Some</span>(conn.clone());
+
+                        <span class="comment">// For every peer with a player index that is higher than ours, wait for
+                        // them to connect to us.
+                        </span><span class="kw">let </span>range = (player_idx + <span class="number">1</span>)..player_count;
+                        <span class="macro">info!</span>(players=<span class="question-mark">?</span>range, <span class="string">&quot;Waiting for {} peer connections&quot;</span>, range.len());
+                        <span class="kw">for _ in </span>range {
+                            <span class="comment">// Wait for connection
+                            </span><span class="kw">let </span>conn = NETWORK_ENDPOINT
+                                .accept()
+                                .<span class="kw">await
+                                </span>.unwrap()
+                                .<span class="kw">await
+                                </span>.expect(<span class="string">&quot;Could not accept incomming connection&quot;</span>);
+
+                            <span class="comment">// Receive the player index
+                            </span><span class="kw">let </span>idx = {
+                                <span class="kw">let </span><span class="kw-2">mut </span>buf = [<span class="number">0</span>; <span class="number">1</span>];
+                                <span class="kw">let </span><span class="kw-2">mut </span>channel = conn.accept_uni().<span class="kw">await</span>.unwrap();
+                                channel.read_exact(<span class="kw-2">&amp;mut </span>buf).<span class="kw">await</span>.unwrap();
+
+                                buf[<span class="number">0</span>] <span class="kw">as </span>usize
+                            };
+                            <span class="macro">assert!</span>(idx &lt; MAX_PLAYERS, <span class="string">&quot;Invalid player index&quot;</span>);
+
+                            peer_connections[idx] = <span class="prelude-val">Some</span>(conn);
                         }
-                        <span class="kw">let </span>lan_socket = LanSocket::new(peers);
+
+                        <span class="comment">// For every peer with a player index lower than ours, connect to them.
+                        </span><span class="kw">let </span>range = <span class="number">1</span>..player_idx;
+                        <span class="macro">info!</span>(players=<span class="question-mark">?</span>range, <span class="string">&quot;Connecting to {} peers&quot;</span>, range.len());
+                        <span class="kw">for </span>i <span class="kw">in </span>range {
+                            <span class="kw">let </span>addr = peer_addrs[i].unwrap();
+                            <span class="kw">let </span>conn = NETWORK_ENDPOINT
+                                .connect(addr.into(), <span class="string">&quot;jumpy-peer&quot;</span>)
+                                .unwrap()
+                                .<span class="kw">await
+                                </span>.expect(<span class="string">&quot;Could not connect to peer&quot;</span>);
+
+                            <span class="comment">// Send player index
+                            </span><span class="kw">let </span><span class="kw-2">mut </span>channel = conn.open_uni().<span class="kw">await</span>.unwrap();
+                            channel.write(<span class="kw-2">&amp;</span>[player_idx <span class="kw">as </span>u8]).<span class="kw">await</span>.unwrap();
+                            channel.finish().<span class="kw">await</span>.unwrap();
+
+                            peer_connections[i] = <span class="prelude-val">Some</span>(conn);
+                        }
+
+                        <span class="kw">let </span>lan_socket = LanSocket::new(player_idx, peer_connections);
+                        <span class="macro">info!</span>(<span class="string">&quot;Connections established.&quot;</span>);
 
                         matchmaker_channel
                             .try_send(LanMatchmakerResponse::GameStarting {
                                 lan_socket,
                                 player_idx,
+                                player_count,
                             })
                             .ok();
                     }
@@ -778,34 +760,23 @@
     GameStarting {
         lan_socket: LanSocket,
         player_idx: usize,
+        player_count: usize,
     },
 }
 
-<span class="kw">pub struct </span>LanSessionRunner {
-    <span class="kw">pub </span>last_player_input: PlayerControl,
-    <span class="kw">pub </span>core: CoreSession,
-    <span class="kw">pub </span>session: P2PSession&lt;GgrsConfig&gt;,
-    <span class="kw">pub </span>player_is_local: [bool; MAX_PLAYERS],
-    <span class="kw">pub </span>delta: f32,
-    <span class="kw">pub </span>accumulator: f32,
-}
-
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>LanSessionInfo {
-    <span class="kw">pub </span>socket: LanSocket,
-    <span class="kw">pub </span>player_is_local: [bool; MAX_PLAYERS],
+<span class="attr">#[derive(Debug, Clone)]
+</span><span class="kw">pub struct </span>LanSocket {
+    <span class="kw">pub </span>connections: [<span class="prelude-ty">Option</span>&lt;quinn::Connection&gt;; MAX_PLAYERS],
+    <span class="kw">pub </span>ggrs_receiver: async_channel::Receiver&lt;(usize, ggrs::Message)&gt;,
+    <span class="kw">pub </span>reliable_receiver: async_channel::Receiver&lt;(usize, Vec&lt;u8&gt;)&gt;,
+    <span class="kw">pub </span>player_idx: usize,
     <span class="kw">pub </span>player_count: usize,
 }
 
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>LanSocket {
-    <span class="kw">pub </span>connections: [<span class="prelude-ty">Option</span>&lt;quinn::Connection&gt;; MAX_PLAYERS],
-    <span class="kw">pub </span>message_channel: async_channel::Receiver&lt;(usize, ggrs::Message)&gt;,
-}
-
 <span class="kw">impl </span>LanSocket {
-    <span class="kw">pub fn </span>new(connections: [<span class="prelude-ty">Option</span>&lt;quinn::Connection&gt;; MAX_PLAYERS]) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>(sender, receiver) = async_channel::unbounded();
+    <span class="kw">pub fn </span>new(player_idx: usize, connections: [<span class="prelude-ty">Option</span>&lt;quinn::Connection&gt;; MAX_PLAYERS]) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(ggrs_sender, ggrs_receiver) = async_channel::unbounded();
+        <span class="kw">let </span>(reliable_sender, reliable_receiver) = async_channel::unbounded();
 
         <span class="kw">let </span>pool = bevy::tasks::IoTaskPool::get();
 
@@ -813,8 +784,13 @@
         </span><span class="attr">#[allow(clippy::needless_range_loop)]
         </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..MAX_PLAYERS {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(conn) = connections[i].clone() {
-                <span class="kw">let </span>sender = sender.clone();
+                <span class="kw">let </span>ggrs_sender = ggrs_sender.clone();
+
+                <span class="comment">// Unreliable message receiver
+                </span><span class="kw">let </span>conn_ = conn.clone();
                 pool.spawn(<span class="kw">async move </span>{
+                    <span class="kw">let </span>conn = conn_;
+
                     <span class="attr">#[cfg(feature = <span class="string">&quot;debug-network-slowdown&quot;</span>)]
                     </span><span class="kw">use </span>turborand::prelude::<span class="kw-2">*</span>;
                     <span class="attr">#[cfg(feature = <span class="string">&quot;debug-network-slowdown&quot;</span>)]
@@ -848,7 +824,56 @@
                                         )
                                         .<span class="kw">await</span>;
                                     }
-                                    <span class="kw">if </span>sender.send((i, message)).<span class="kw">await</span>.is_err() {
+                                    <span class="kw">if </span>ggrs_sender.send((i, message)).<span class="kw">await</span>.is_err() {
+                                        <span class="kw">break</span>;
+                                    }
+                                }
+                                <span class="prelude-val">Err</span>(e) =&gt; {
+                                    <span class="macro">warn!</span>(<span class="string">&quot;Connection error: {e}&quot;</span>);
+                                }
+                            },
+                        }
+                    }
+                })
+                .detach();
+
+                <span class="comment">// Reliable message receiver
+                </span><span class="kw">let </span>reliable_sender = reliable_sender.clone();
+                pool.spawn(<span class="kw">async move </span>{
+                    <span class="attr">#[cfg(feature = <span class="string">&quot;debug-network-slowdown&quot;</span>)]
+                    </span><span class="kw">use </span>turborand::prelude::<span class="kw-2">*</span>;
+                    <span class="attr">#[cfg(feature = <span class="string">&quot;debug-network-slowdown&quot;</span>)]
+                    </span><span class="kw">let </span>rng = AtomicRng::new();
+
+                    <span class="kw">loop </span>{
+                        <span class="kw">let </span>event =
+                            future::or(<span class="kw">async </span>{ either::Left(conn.closed().<span class="kw">await</span>) }, <span class="kw">async </span>{
+                                either::Right(conn.accept_uni().<span class="kw">await</span>)
+                            })
+                            .<span class="kw">await</span>;
+
+                        <span class="kw">match </span>event {
+                            either::Either::Left(closed) =&gt; {
+                                <span class="macro">warn!</span>(<span class="string">&quot;Connection error: {closed}&quot;</span>);
+                                <span class="kw">break</span>;
+                            }
+                            either::Either::Right(result) =&gt; <span class="kw">match </span>result {
+                                <span class="prelude-val">Ok</span>(stream) =&gt; {
+                                    <span class="kw">let </span>data =
+                                        stream.read_to_end(<span class="number">4096</span>).<span class="kw">await</span>.expect(<span class="string">&quot;Network read error&quot;</span>);
+
+                                    <span class="comment">// Debugging code to introduce artificial latency
+                                    </span><span class="attr">#[cfg(feature = <span class="string">&quot;debug-network-slowdown&quot;</span>)]
+                                    </span>{
+                                        <span class="kw">use </span>async_timer::Oneshot;
+                                        async_timer::oneshot::Timer::new(
+                                            std::time::Duration::from_millis(
+                                                (rng.f32_normalized() * <span class="number">100.0</span>) <span class="kw">as </span>u64 + <span class="number">1</span>,
+                                            ),
+                                        )
+                                        .<span class="kw">await</span>;
+                                    }
+                                    <span class="kw">if </span>reliable_sender.send((i, data)).<span class="kw">await</span>.is_err() {
                                         <span class="kw">break</span>;
                                     }
                                 }
@@ -864,8 +889,11 @@
         }
 
         <span class="self">Self </span>{
+            player_idx,
+            player_count: connections.iter().flatten().count() + <span class="number">1</span>,
             connections,
-            message_channel: receiver,
+            ggrs_receiver,
+            reliable_receiver,
         }
     }
 }
@@ -882,207 +910,75 @@
 
     <span class="kw">fn </span>receive_all_messages(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Vec&lt;(usize, ggrs::Message)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>messages = Vec::new();
-        <span class="kw">while let </span><span class="prelude-val">Ok</span>(message) = <span class="self">self</span>.message_channel.try_recv() {
+        <span class="kw">while let </span><span class="prelude-val">Ok</span>(message) = <span class="self">self</span>.ggrs_receiver.try_recv() {
             messages.push(message);
         }
         messages
     }
 }
 
-<span class="kw">impl </span>LanSessionRunner {
-    <span class="kw">pub fn </span>new(<span class="kw-2">mut </span>core: CoreSession, info: LanSessionInfo) -&gt; <span class="self">Self
-    </span><span class="kw">where
-        </span><span class="self">Self</span>: Sized,
-    {
-        core.time_step = <span class="number">1.0 </span>/ (jumpy_core::FPS * NETWORK_FRAME_RATE_FACTOR);
-        <span class="kw">let </span><span class="kw-2">mut </span>builder = ggrs::SessionBuilder::new()
-            .with_num_players(info.player_count)
-            .with_max_prediction_window(<span class="number">8</span>)
-            .with_input_delay(<span class="number">1</span>)
-            .with_fps((jumpy_core::FPS * NETWORK_FRAME_RATE_FACTOR) <span class="kw">as </span>usize)
-            .unwrap();
+<span class="kw">impl </span>NetworkSocket <span class="kw">for </span>LanSocket {
+    <span class="kw">fn </span>send_reliable(<span class="kw-2">&amp;</span><span class="self">self</span>, target: SocketTarget, message: <span class="kw-2">&amp;</span>[u8]) {
+        <span class="kw">let </span>task_pool = IoTaskPool::get();
+        <span class="kw">let </span>message = Bytes::copy_from_slice(message);
 
-        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..info.player_count {
-            <span class="kw">if </span>info.player_is_local[i] {
-                builder = builder.add_player(ggrs::PlayerType::Local, i).unwrap();
-            } <span class="kw">else </span>{
-                builder = builder.add_player(ggrs::PlayerType::Remote(i), i).unwrap();
+        <span class="kw">match </span>target {
+            SocketTarget::Player(i) =&gt; {
+                <span class="kw">let </span>conn = <span class="self">self</span>.connections[i].as_ref().unwrap().clone();
+
+                task_pool
+                    .spawn(<span class="kw">async move </span>{
+                        <span class="kw">let </span><span class="kw-2">mut </span>stream = conn.open_uni().<span class="kw">await</span>.unwrap();
+                        stream.write_chunk(message).<span class="kw">await</span>.unwrap();
+                        stream.finish().<span class="kw">await</span>.unwrap();
+                    })
+                    .detach();
             }
-        }
-
-        <span class="kw">let </span>session = builder.start_p2p_session(info.socket).unwrap();
-
-        <span class="self">Self </span>{
-            last_player_input: PlayerControl::default(),
-            core,
-            session,
-            player_is_local: info.player_is_local,
-            accumulator: default(),
-            delta: default(),
-        }
-    }
-}
-
-<span class="kw">fn </span>get_dense_input(control: <span class="kw-2">&amp;</span>PlayerControl) -&gt; DensePlayerControl {
-    <span class="kw">let </span><span class="kw-2">mut </span>dense_control = DensePlayerControl::default();
-    dense_control.set_jump_pressed(control.jump_just_pressed);
-    dense_control.set_grab_pressed(control.grab_pressed);
-    dense_control.set_slide_pressed(control.slide_pressed);
-    dense_control.set_shoot_pressed(control.shoot_pressed);
-    dense_control.set_move_direction(DenseMoveDirection(control.move_direction));
-    dense_control
-}
-
-<span class="kw">impl </span><span class="kw">crate</span>::session::SessionRunner <span class="kw">for </span>LanSessionRunner {
-    <span class="kw">fn </span>core_session(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>CoreSession {
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>.core
-    }
-
-    <span class="kw">fn </span>restart(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.core.restart()
-    }
-
-    <span class="kw">fn </span>set_player_input(<span class="kw-2">&amp;mut </span><span class="self">self</span>, player_idx: usize, control: PlayerControl) {
-        <span class="kw">if </span>!<span class="self">self</span>.player_is_local[player_idx] {
-            <span class="kw">return</span>;
-        }
-        <span class="self">self</span>.last_player_input = control;
-    }
-
-    <span class="kw">fn </span>advance(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bevy_world: <span class="kw-2">&amp;mut </span>World) -&gt; <span class="prelude-ty">Result</span>&lt;(), SessionError&gt; {
-        <span class="kw">const </span>STEP: f32 = <span class="number">1.0 </span>/ (jumpy_core::FPS * NETWORK_FRAME_RATE_FACTOR);
-        <span class="kw">let </span>delta = <span class="self">self</span>.delta;
-        <span class="kw">let </span>local_player_idx = <span class="self">self</span>.network_player_idx().unwrap();
-
-        <span class="self">self</span>.accumulator += delta;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>skip_frames = <span class="number">0</span>;
-        <span class="kw">for </span>event <span class="kw">in </span><span class="self">self</span>.session.events() {
-            <span class="kw">match </span>event {
-                ggrs::GGRSEvent::Synchronizing { addr, total, count } =&gt; {
-                    <span class="macro">info!</span>(player=%addr, %total, progress=%count, <span class="string">&quot;Syncing network player&quot;</span>);
-                }
-                ggrs::GGRSEvent::Synchronized { addr } =&gt; {
-                    <span class="macro">info!</span>(player=%addr, <span class="string">&quot;Syncrhonized network client&quot;</span>);
-                }
-                ggrs::GGRSEvent::Disconnected { .. } =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SessionError::Disconnected),
-                ggrs::GGRSEvent::NetworkInterrupted { addr, .. } =&gt; {
-                    <span class="macro">info!</span>(player=%addr, <span class="string">&quot;Network player interrupted&quot;</span>);
-                }
-                ggrs::GGRSEvent::NetworkResumed { addr } =&gt; {
-                    <span class="macro">info!</span>(player=%addr, <span class="string">&quot;Network player re-connected&quot;</span>);
-                }
-                ggrs::GGRSEvent::WaitRecommendation {
-                    skip_frames: skip_count,
-                } =&gt; {
-                    <span class="macro">info!</span>(
-                        <span class="string">&quot;Skipping {skip_count} frames to give network players a chance to catch up&quot;
-                    </span>);
-                    skip_frames = skip_count
-                }
-                ggrs::GGRSEvent::DesyncDetected {
-                    frame,
-                    local_checksum,
-                    remote_checksum,
-                    addr,
-                } =&gt; {
-                    <span class="macro">error!</span>(%frame, %local_checksum, %remote_checksum, player=%addr, <span class="string">&quot;Network de-sync detected&quot;</span>);
-                }
-            }
-        }
-
-        <span class="kw">loop </span>{
-            <span class="self">self</span>.session
-                .add_local_input(local_player_idx, get_dense_input(<span class="kw-2">&amp;</span><span class="self">self</span>.last_player_input))
-                .unwrap();
-            <span class="kw">if </span><span class="self">self</span>.accumulator &gt;= STEP {
-                <span class="self">self</span>.accumulator -= STEP;
-
-                <span class="kw">if </span>skip_frames &gt; <span class="number">0 </span>{
-                    skip_frames = skip_frames.saturating_sub(<span class="number">1</span>);
-                    <span class="kw">continue</span>;
-                }
-
-                <span class="kw">match </span><span class="self">self</span>.session.advance_frame() {
-                    <span class="prelude-val">Ok</span>(requests) =&gt; {
-                        <span class="kw">for </span>request <span class="kw">in </span>requests {
-                            <span class="kw">match </span>request {
-                                ggrs::GGRSRequest::SaveGameState { cell, frame } =&gt; {
-                                    cell.save(frame, <span class="prelude-val">Some</span>(<span class="self">self</span>.core.world.clone()), <span class="prelude-val">None</span>)
-                                }
-                                ggrs::GGRSRequest::LoadGameState { cell, .. } =&gt; {
-                                    <span class="kw">let </span>world = cell.load().unwrap_or_default();
-                                    <span class="self">self</span>.core.world = world;
-                                }
-                                ggrs::GGRSRequest::AdvanceFrame {
-                                    inputs: network_inputs,
-                                } =&gt; {
-                                    <span class="self">self</span>.core.update_input(|inputs| {
-                                        <span class="kw">for </span>(player_idx, (input, _status)) <span class="kw">in
-                                            </span>network_inputs.into_iter().enumerate()
-                                        {
-                                            <span class="kw">let </span>control = <span class="kw-2">&amp;mut </span>inputs.players[player_idx].control;
-
-                                            <span class="kw">let </span>jump_pressed = input.jump_pressed();
-                                            control.jump_just_pressed =
-                                                jump_pressed &amp;&amp; !control.jump_pressed;
-                                            control.jump_pressed = jump_pressed;
-
-                                            <span class="kw">let </span>grab_pressed = input.grab_pressed();
-                                            control.grab_just_pressed =
-                                                grab_pressed &amp;&amp; !control.grab_pressed;
-                                            control.grab_pressed = grab_pressed;
-
-                                            <span class="kw">let </span>shoot_pressed = input.shoot_pressed();
-                                            control.shoot_just_pressed =
-                                                shoot_pressed &amp;&amp; !control.shoot_pressed;
-                                            control.shoot_pressed = shoot_pressed;
-
-                                            <span class="kw">let </span>was_moving =
-                                                control.move_direction.length_squared()
-                                                    &gt; f32::MIN_POSITIVE;
-                                            control.move_direction = input.move_direction().<span class="number">0</span>;
-                                            <span class="kw">let </span>is_moving = control.move_direction.length_squared()
-                                                &gt; f32::MIN_POSITIVE;
-                                            control.just_moved = !was_moving &amp;&amp; is_moving;
-                                        }
-                                    });
-                                    <span class="self">self</span>.core.advance(bevy_world);
-                                }
-                            }
-                        }
+            SocketTarget::All =&gt; {
+                <span class="kw">for </span>conn <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.connections {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(conn) = conn.clone() {
+                        <span class="kw">let </span>message = message.clone();
+                        task_pool
+                            .spawn(<span class="kw">async move </span>{
+                                <span class="kw">let </span><span class="kw-2">mut </span>stream = conn.open_uni().<span class="kw">await</span>.unwrap();
+                                stream.write_chunk(message).<span class="kw">await</span>.unwrap();
+                                stream.finish().<span class="kw">await</span>.unwrap();
+                            })
+                            .detach();
                     }
-                    <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">match </span>e {
-                        ggrs::GGRSError::NotSynchronized =&gt; {
-                            <span class="macro">debug!</span>(<span class="string">&quot;Waiting for network clients to sync&quot;</span>)
-                        }
-                        ggrs::GGRSError::PredictionThreshold =&gt; {
-                            <span class="macro">warn!</span>(<span class="string">&quot;Freezing game while waiting for network to catch-up.&quot;</span>)
-                        }
-                        e =&gt; <span class="macro">error!</span>(<span class="string">&quot;Network protocol error: {e}&quot;</span>),
-                    },
                 }
-            } <span class="kw">else </span>{
-                <span class="kw">break</span>;
             }
         }
-
-        <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>run_criteria(<span class="kw-2">&amp;mut </span><span class="self">self</span>, time: <span class="kw-2">&amp;</span>Time) -&gt; bevy::ecs::schedule::ShouldRun {
-        <span class="self">self</span>.delta = time.delta_seconds();
-        bevy::ecs::schedule::ShouldRun::Yes
-    }
-
-    <span class="kw">fn </span>network_player_idx(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
-        <span class="comment">// We are the first local player
-        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..MAX_PLAYERS {
-            <span class="kw">if </span><span class="self">self</span>.player_is_local[i] {
-                <span class="kw">return </span><span class="prelude-val">Some</span>(i);
-            }
+    <span class="kw">fn </span>recv_reliable(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;(usize, Vec&lt;u8&gt;)&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>messages = Vec::new();
+        <span class="kw">while let </span><span class="prelude-val">Ok</span>(message) = <span class="self">self</span>.reliable_receiver.try_recv() {
+            messages.push(message);
         }
-        <span class="macro">unreachable!</span>();
+        messages
+    }
+
+    <span class="kw">fn </span>ggrs_socket(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BoxedNonBlockingSocket {
+        BoxedNonBlockingSocket(Box::new(<span class="self">self</span>.clone()))
+    }
+
+    <span class="kw">fn </span>close(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="kw">for </span>conn <span class="kw">in </span><span class="self">self</span>.connections.iter().flatten() {
+            conn.close(<span class="number">0u8</span>.into(), <span class="kw-2">&amp;</span>[]);
+        }
+    }
+
+    <span class="kw">fn </span>player_idx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.player_idx
+    }
+
+    <span class="kw">fn </span>player_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.player_count
+    }
+
+    <span class="kw">fn </span>player_is_local(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [bool; MAX_PLAYERS] {
+        std::array::from_fn(|i| <span class="self">self</span>.connections[i].is_none() &amp;&amp; i &lt; <span class="self">self</span>.player_count)
     }
 }
 </code></pre></div>
