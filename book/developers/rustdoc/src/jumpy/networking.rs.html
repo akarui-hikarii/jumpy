@@ -1,4 +1,99 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/networking.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>networking.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-6827029ac823cab7.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../static.files/ayu-8af5e100b21cd173.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../jumpy/index.html">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/networking.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>networking.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-6827029ac823cab7.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../static.files/ayu-8af5e100b21cd173.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"><script src='https://unpkg.com/panzoom@9.4.0/dist/panzoom.min.js'></script>
+<script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.2.2/dist/mermaid.esm.min.mjs"
+    mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'loose',
+        theme: 'dark',
+        themeVariables: {
+            fontSize: '16px',
+            lineColor: '#F8B229',
+            clusterBkg: '#0000',
+            edgeLabelBackground: '#1A1A1A'
+        }
+    });
+    mermaid.run({
+        querySelector: '.mermaid',
+        postRenderCallback: id => {
+            let el = document.getElementById(id);
+            const pz = panzoom(el, {
+                smoothScroll: false,
+                zoomDoubleClickSpeed: 1,
+                beforeWheel: function (e) {
+                    // allow wheel-zoom only if ctrl is down. Otherwise - ignore
+                    var shouldIgnore = !e.ctrlKey;
+                    return shouldIgnore;
+                }
+            })
+
+            const plusDiv = document.createElement('div');
+            plusDiv.style = "width: 25px; height: 25px; position: absolute; right: 0.8em; bottom: 0.8em; border: 2px solid #BBB; text-align: center; padding: auto; font-size: 18px; background-color: #222; cursor: pointer"
+            plusDiv.innerText = "+"
+            plusDiv.onclick = () => {
+                pz.smoothZoom(0, 0, 1.2)
+            }
+            el.parentNode.appendChild(plusDiv);
+
+            const minusDiv = document.createElement('div');
+            minusDiv.style = "width: 25px; height: 25px; position: absolute; right: 2.4em; bottom: 0.8em; border: 2px solid #BBB; text-align: center; padding: auto; font-size: 18px; background-color: #222; cursor: pointer"
+            minusDiv.innerText = "-"
+            minusDiv.onclick = () => {
+                pz.smoothZoom(0, 0, 0.8)
+            }
+            el.parentNode.appendChild(minusDiv);
+        }
+    })
+
+    // Callback for use in mermaid diagrams that will open a relative doc link when clicking.
+    //
+    // Example doc link for `arg` would be: jumpy/session/struct.SessionManager.html
+    window.docLink = (arg) => {
+        let pathElems = new URL(window.location.href).pathname.split('/').filter(x => x != '');
+        for (let i = pathElems.length - 1; i > -1; i--) {
+            if (pathElems[i] != 'jumpy' && pathElems[i] != 'jumpy_core') {
+                pathElems = pathElems.slice(0, i - 1);
+                break;
+            }
+        }
+        window.location.href = '/' + pathElems.join('/') + '/' + arg;
+    }
+</script>
+<style>
+    /*
+        Hide the lock icons shown for private items. It isn't helpful
+        in this context.
+    */
+    [title="Restricted Visibility"] {
+        display: none;
+    }
+
+    .mermaid {
+        overflow: hidden !important;
+        border: 1px solid #BBB;
+        border-radius: 1em;
+        cursor: move;
+        position: relative;
+    }
+
+    .dotted rect {
+        stroke-dasharray: 5;
+    }
+
+    .code .nodeLabel {
+        color: #2dbfb8 !important;
+    }
+
+    .code rect {
+        transition: 0.2s;
+        stroke: #2dbfb8 !important;
+    }
+
+    .code:hover rect {
+        transform: scale(1.05)
+    }
+</style>
+
+</head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../jumpy/index.html">
                         <img src="https://avatars.githubusercontent.com/u/87333478?s=200&amp;v=4" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -327,7 +422,21 @@
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
-</pre><pre class="rust"><code><span class="comment">// #![doc = include_str!(&quot;./networking.md&quot;)]
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+</pre><pre class="rust"><code><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;./networking.md&quot;</span>)]
 
 </span><span class="kw">use </span>ggrs::P2PSession;
 <span class="kw">use </span>jumpy_core::input::PlayerControl;
@@ -336,21 +445,15 @@
 <span class="kw">use </span><span class="kw">crate</span>::prelude::<span class="kw-2">*</span>;
 
 <span class="kw">pub mod </span>certs;
-
+<span class="kw">pub mod </span>lan;
+<span class="kw">pub mod </span>online;
 <span class="kw">pub mod </span>proto;
-<span class="kw">use </span>proto::<span class="kw-2">*</span>;
 
-<span class="kw">pub use </span>lan::<span class="kw-2">*</span>;
-<span class="kw">mod </span>lan;
-
-<span class="kw">pub use </span>online::<span class="kw-2">*</span>;
-<span class="kw">mod </span>online;
-
-<span class="kw">pub struct </span>NetworkingPlugin;
-
-<span class="kw">impl </span>Plugin <span class="kw">for </span>NetworkingPlugin {
-    <span class="kw">fn </span>build(<span class="kw-2">&amp;</span><span class="self">self</span>, _app: <span class="kw-2">&amp;mut </span>App) {}
-}
+<span class="doccomment">/// The muliplier for the [`jumpy_core::FPS`] that will be used when playing an online match.
+///
+/// Lowering the frame rate a little for online matches reduces bandwidth and may help overall
+/// gameplay. This may not be necessary once we improve network performance.
+</span><span class="kw">pub const </span>NETWORK_FRAME_RATE_FACTOR: f32 = <span class="number">0.9</span>;
 
 <span class="doccomment">/// The [`ggrs::Config`] implementation used by Jumpy.
 </span><span class="attr">#[derive(Debug)]
@@ -362,7 +465,7 @@
     </span><span class="kw">type </span>Address = usize;
 }
 
-<span class="doccomment">/// The QUIC network endpoint used for all network communications.
+<span class="doccomment">/// The network endpoint used for all QUIC network communications.
 </span><span class="kw">pub static </span>NETWORK_ENDPOINT: Lazy&lt;quinn::Endpoint&gt; = Lazy::new(|| {
     <span class="comment">// Generate certificate
     </span><span class="kw">let </span>(cert, key) = certs::generate_self_signed_cert().unwrap();
@@ -388,7 +491,7 @@
         quinn::EndpointConfig::default(),
         <span class="prelude-val">Some</span>(server_config),
         socket,
-        quinn_runtime_bevy::BevyIoTaskPoolExecutor,
+        Arc::new(quinn_runtime_bevy::BevyIoTaskPoolExecutor),
     )
     .unwrap();
 
@@ -397,11 +500,15 @@
     endpoint
 });
 
-<span class="doccomment">/// Resource containing the network socket while there is a connection to a LAN or online game.
+<span class="doccomment">/// Resource containing the [`NetworkSocket`] implementation while there is a connection to a
+/// network game.
+///
+/// This is inserted into the world after a match has been established by a network matchmaker.
 </span><span class="attr">#[derive(Resource, Deref, DerefMut)]
 </span><span class="kw">pub struct </span>NetworkMatchSocket(<span class="kw">pub </span>Box&lt;<span class="kw">dyn </span>NetworkSocket&gt;);
 
-<span class="doccomment">/// A boxed [`ggrs::NonBlockingSocket`] implementation.
+<span class="doccomment">/// A type-erased [`ggrs::NonBlockingSocket`][crate::external::ggrs::NonBlockingSocket]
+/// implementation.
 </span><span class="attr">#[derive(Deref, DerefMut)]
 </span><span class="kw">pub struct </span>BoxedNonBlockingSocket(Box&lt;<span class="kw">dyn </span>ggrs::NonBlockingSocket&lt;usize&gt; + <span class="lifetime">&#39;static</span>&gt;);
 
@@ -415,7 +522,10 @@
     }
 }
 
-<span class="doccomment">/// Trait implemented by network match sockets.
+<span class="doccomment">/// Trait that must be implemented by socket connections establish by matchmakers.
+///
+/// The [`NetworkMatchSocket`] resource will contain an instance of this trait and will be used by
+/// the game to send network messages after a match has been established.
 </span><span class="kw">pub trait </span>NetworkSocket: Sync + Send {
     <span class="doccomment">/// Get a GGRS socket from this network socket.
     </span><span class="kw">fn </span>ggrs_socket(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BoxedNonBlockingSocket;
@@ -434,7 +544,7 @@
     </span><span class="kw">fn </span>player_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize;
 }
 
-<span class="doccomment">/// The target for a reliable network message.
+<span class="doccomment">/// The destination for a reliable network message.
 </span><span class="kw">pub enum </span>SocketTarget {
     <span class="doccomment">/// Send to a specific player.
     </span>Player(usize),
@@ -442,25 +552,37 @@
     </span>All,
 }
 
-<span class="doccomment">/// [`SessionRunner`] implementation that uses [`ggrs`] for network play.
+<span class="doccomment">/// [`SessionRunner`] implementation that uses [`ggrs`][crate::external::ggrs] for network play.
+///
+/// This is where the whole `ggrs` integration is implemented.
 </span><span class="kw">pub struct </span>GgrsSessionRunner {
-    <span class="kw">pub </span>last_player_input: PlayerControl,
-    <span class="kw">pub </span>core: CoreSession,
-    <span class="kw">pub </span>session: P2PSession&lt;GgrsConfig&gt;,
-    <span class="kw">pub </span>player_is_local: [bool; MAX_PLAYERS],
-    <span class="kw">pub </span>delta: f32,
-    <span class="kw">pub </span>accumulator: f32,
+    <span class="doccomment">/// The last player input we detected.
+    </span><span class="kw">pub </span>last_player_input: PlayerControl,
+    <span class="doccomment">/// The core game session.
+    </span><span class="kw">pub </span>core: CoreSession,
+    <span class="doccomment">/// The GGRS peer-to-peer session.
+    </span><span class="kw">pub </span>session: P2PSession&lt;GgrsConfig&gt;,
+    <span class="doccomment">/// Array containing a flag indicating, for each player, whether they are a local player.
+    </span><span class="kw">pub </span>player_is_local: [bool; MAX_PLAYERS],
+    <span class="doccomment">/// The frame time delta.
+    </span><span class="kw">pub </span>delta: f32,
+    <span class="doccomment">/// The frame time accumulator, used to produce a fixed refresh rate.
+    </span><span class="kw">pub </span>accumulator: f32,
 }
 
 <span class="doccomment">/// The info required to create a [`GgrsSessionRunner`].
 </span><span class="kw">pub struct </span>GgrsSessionRunnerInfo {
-    <span class="kw">pub </span>socket: BoxedNonBlockingSocket,
-    <span class="kw">pub </span>player_is_local: [bool; MAX_PLAYERS],
-    <span class="kw">pub </span>player_count: usize,
+    <span class="doccomment">/// The GGRS socket implementation to use.
+    </span><span class="kw">pub </span>socket: BoxedNonBlockingSocket,
+    <span class="doccomment">/// The list of local players.
+    </span><span class="kw">pub </span>player_is_local: [bool; MAX_PLAYERS],
+    <span class="doccomment">/// the player count.
+    </span><span class="kw">pub </span>player_count: usize,
 }
 
 <span class="kw">impl </span>GgrsSessionRunner {
-    <span class="kw">pub fn </span>new(<span class="kw-2">mut </span>core: CoreSession, info: GgrsSessionRunnerInfo) -&gt; <span class="self">Self
+    <span class="doccomment">/// Create a new sessino runner.
+    </span><span class="kw">pub fn </span>new(<span class="kw-2">mut </span>core: CoreSession, info: GgrsSessionRunnerInfo) -&gt; <span class="self">Self
     </span><span class="kw">where
         </span><span class="self">Self</span>: Sized,
     {
@@ -493,13 +615,14 @@
     }
 }
 
-<span class="kw">fn </span>get_dense_input(control: <span class="kw-2">&amp;</span>PlayerControl) -&gt; DensePlayerControl {
-    <span class="kw">let </span><span class="kw-2">mut </span>dense_control = DensePlayerControl::default();
+<span class="doccomment">/// Get a [`proto::DensePlayerControl`] from a normal [`PlayerControl`].
+</span><span class="kw">fn </span>get_dense_input(control: <span class="kw-2">&amp;</span>PlayerControl) -&gt; proto::DensePlayerControl {
+    <span class="kw">let </span><span class="kw-2">mut </span>dense_control = proto::DensePlayerControl::default();
     dense_control.set_jump_pressed(control.jump_just_pressed);
     dense_control.set_grab_pressed(control.grab_pressed);
     dense_control.set_slide_pressed(control.slide_pressed);
     dense_control.set_shoot_pressed(control.shoot_pressed);
-    dense_control.set_move_direction(DenseMoveDirection(control.move_direction));
+    dense_control.set_move_direction(proto::DenseMoveDirection(control.move_direction));
     dense_control
 }
 
@@ -640,9 +763,9 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>run_criteria(<span class="kw-2">&amp;mut </span><span class="self">self</span>, time: <span class="kw-2">&amp;</span>Time) -&gt; bevy::ecs::schedule::ShouldRun {
+    <span class="kw">fn </span>run_criteria(<span class="kw-2">&amp;mut </span><span class="self">self</span>, time: <span class="kw-2">&amp;</span>Time) -&gt; ShouldRun {
         <span class="self">self</span>.delta = time.delta_seconds();
-        bevy::ecs::schedule::ShouldRun::Yes
+        ShouldRun::Yes
     }
 
     <span class="kw">fn </span>network_player_idx(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
