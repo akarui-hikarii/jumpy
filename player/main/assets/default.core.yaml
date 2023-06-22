@@ -25,6 +25,10 @@ players:
   - /player/skins/sharky/sharky.player.yaml
   - /player/skins/orcy/orcy.player.yaml
 
+player_hats:
+  - /player/hats/pirate.hat.yaml
+  - /player/hats/straw.hat.yaml
+
 stable_maps:
   - /map/levels/level_1.map.yaml
   - /map/levels/level_2.map.yaml
@@ -67,5 +71,7 @@ map_elements:
   - /elements/item/musket/musket.element.yaml
   - /elements/item/stomp_boots/stomp_boots.element.yaml
   - /elements/item/sword/sword.element.yaml
+  - /elements/item/sniper_rifle/sniper_rifle.element.yaml
+  - /elements/environment/coral_spikes/coral_spikes.element.yaml
 
 experimental_maps: []
