@@ -1,320 +1,206 @@
-use crate::{editor::UserMapStorage, ui::pause_menu::PauseMenuPage};
+use crate::core::{JumpyDefaultMatchRunner, MatchPlugin};
+use crate::prelude::*;
+
+use crate::ui::map_select::{map_select_menu, MapSelectAction};
 
 #[cfg(not(target_arch = "wasm32"))]
-use crate::networking::{GgrsSessionRunnerInfo, NetworkMatchSocket, SocketTarget};
+use crate::ui::network_game::NetworkGameState;
 
-use super::*;
+use super::player_select::PlayerSelectState;
+use super::MenuPage;
+
+#[cfg(not(target_arch = "wasm32"))]
+use bones_framework::networking::{GgrsSessionRunner, GgrsSessionRunnerInfo, NetworkMatchSocket};
 
 /// Network message that may be sent when selecting a map.
 #[derive(Serialize, Deserialize)]
 pub enum MapSelectMessage {
-    SelectMap(bones::Handle<MapMeta>),
+    SelectMap(MapPoolNetwork),
 }
 
-#[derive(SystemParam)]
-pub struct MapSelectMenu<'w, 's> {
-    menu_input: Query<'w, 's, &'static mut ActionState<MenuAction>>,
-    menu_page: ResMut<'w, MenuPage>,
-    session_manager: SessionManager<'w, 's>,
-    game: Res<'w, GameMeta>,
-    core: Res<'w, CoreMetaArc>,
-    player_select_state: Res<'w, super::player_select::PlayerSelectState>,
-    game_state: Res<'w, State<EngineState>>,
-    pause_page: ResMut<'w, PauseMenuPage>,
-    commands: Commands<'w, 's>,
-    localization: Res<'w, Localization>,
-    map_assets: Res<'w, Assets<MapMeta>>,
-    storage: ResMut<'w, Storage>,
+pub fn widget(
+    ui: In<&mut egui::Ui>,
+    world: &World,
+    meta: Root<GameMeta>,
+    mut sessions: ResMut<Sessions>,
+    mut session_options: ResMut<SessionOptions>,
+    assets: Res<AssetServer>,
+
+    #[cfg(not(target_arch = "wasm32"))] network_socket: Option<Res<NetworkMatchSocket>>,
+) {
+    let mut select_action = MapSelectAction::None;
+
+    // Get map select action from network
     #[cfg(not(target_arch = "wasm32"))]
-    network_socket: Option<Res<'w, NetworkMatchSocket>>,
-}
+    if let Some(MapSelectAction::SelectMap(map_meta)) =
+        handle_match_setup_messages(&network_socket, &assets)
+    {
+        select_action = MapSelectAction::SelectMap(map_meta);
+    }
 
-impl<'w, 's> WidgetSystem for MapSelectMenu<'w, 's> {
-    type Args = bool;
+    // If the `TEST_MAP` debug env var is present start the game with the map
+    // matching the provided name.
+    #[cfg(debug_assertions)]
+    'test: {
+        use std::env::{var, VarError};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static DEBUG_DID_CHECK_ENV_VARS: AtomicBool = AtomicBool::new(false);
+        if DEBUG_DID_CHECK_ENV_VARS
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_ok()
+        {
+            let test_map = match var("TEST_MAP") {
+                Ok(name) => name,
+                Err(VarError::NotPresent) => break 'test,
+                Err(VarError::NotUnicode(err)) => {
+                    warn!("Invalid TEST_MAP, not unicode: {err:?}");
+                    break 'test;
+                }
+            };
 
-    fn system(
-        world: &mut World,
-        state: &mut SystemState<Self>,
-        ui: &mut egui::Ui,
-        _id: WidgetId,
-        is_waiting: Self::Args,
-    ) {
-        let mut params: MapSelectMenu = state.get_mut(world);
+            let asset_server = world.resource::<AssetServer>();
+            let game_meta = asset_server.root::<GameMeta>();
+
+            let get_map_handles = || {
+                let mut map_handles = Vec::new();
+                map_handles.extend(game_meta.core.stable_maps.iter().copied());
+                for pack in asset_server.packs() {
+                    let pack_meta = asset_server.get(pack.root.typed::<crate::PackMeta>());
+                    map_handles.extend(pack_meta.maps.iter().copied());
+                }
+                map_handles
+            };
+
+            let Some(test_map) = get_map_handles()
+                .into_iter()
+                .find(|h| asset_server.get(*h).name == test_map)
+            else {
+                warn!("TEST_MAP not found: {test_map}");
+                let available_names = super::handle_names_to_string(get_map_handles(), |h| {
+                    asset_server.get(h).name.as_str()
+                });
+                warn!("Available map names: {available_names}");
+                break 'test;
+            };
+
+            select_action = MapSelectAction::SelectMap(MapPool::from_single_map(test_map));
+        }
+    }
+
+    // If no network action - update action from UI
+    if matches!(select_action, MapSelectAction::None) {
+        select_action = world.run_system(map_select_menu, ());
 
         #[cfg(not(target_arch = "wasm32"))]
-        handle_match_setup_messages(&mut params);
+        // Replicate local action
+        replicate_map_select_action(&select_action, &network_socket, &assets);
+    }
 
-        let in_game = params.game_state.0 == EngineState::InGame;
+    match select_action {
+        MapSelectAction::None => (),
+        MapSelectAction::SelectMap(maps) => {
+            session_options.delete = true;
+            ui.ctx().set_state(MenuPage::Home);
 
-        if params.menu_input.single().just_pressed(MenuAction::Back) {
-            // If we are on the main menu
-            if params.game_state.0 == EngineState::MainMenu {
-                *params.menu_page = MenuPage::PlayerSelect;
+            #[cfg(not(target_arch = "wasm32"))]
+            let session_runner: Box<dyn SessionRunner> = match network_socket {
+                Some(socket) => {
+                    let random_seed = ui.ctx().get_state::<NetworkGameState>().random_seed();
 
-            // If we're on a map selection in game, we must be in the pause menu
-            } else if in_game {
-                *params.pause_page = PauseMenuPage::Default;
-            }
+                    Box::new(GgrsSessionRunner::<NetworkInputConfig>::new(
+                        Some(FPS),
+                        GgrsSessionRunnerInfo::new(
+                            socket.ggrs_socket(),
+                            Some(meta.network.max_prediction_window),
+                            Some(meta.network.local_input_delay),
+                            random_seed,
+                        ),
+                    ))
+                }
+                None => Box::<JumpyDefaultMatchRunner>::default(),
+            };
+            #[cfg(target_arch = "wasm32")]
+            let session_runner = Box::<JumpyDefaultMatchRunner>::default();
+
+            let player_select_state = ui.ctx().get_state::<PlayerSelectState>();
+            sessions.start_game(MatchPlugin {
+                maps,
+                player_info: std::array::from_fn(|i| {
+                    let slot = player_select_state.slots[i];
+
+                    PlayerInput {
+                        active: !slot.is_empty(),
+                        selected_player: slot
+                            .selected_player()
+                            .unwrap_or(player_select_state.players[0]),
+                        selected_hat: slot.selected_hat(),
+                        control_source: slot.user_control_source(),
+                        editor_input: default(),
+                        control: default(),
+                        is_ai: slot.is_ai(),
+                    }
+                }),
+                plugins: meta.get_plugins(&assets),
+                session_runner,
+                score: default(),
+            });
+            ui.ctx().set_state(PlayerSelectState::default());
         }
+        MapSelectAction::GoBack => ui.ctx().set_state(MenuPage::PlayerSelect),
+    }
+}
 
-        ui.vertical_centered_justified(|ui| {
-            let bigger_text_style = &params.game.ui_theme.font_styles.bigger;
-            let heading_text_style = &params.game.ui_theme.font_styles.heading;
-            let small_button_style = &params.game.ui_theme.button_styles.small;
-
-            if !in_game {
-                ui.add_space(heading_text_style.size / 4.0);
-                ui.themed_label(heading_text_style, &params.localization.get("local-game"));
-                ui.themed_label(
-                    bigger_text_style,
-                    &params.localization.get("map-select-title"),
-                );
-                ui.add_space(small_button_style.font.size);
-            }
-
-            let available_size = ui.available_size();
-            let menu_width = params.game.main_menu.menu_width;
-            let x_margin = (available_size.x - menu_width) / 2.0;
-            let outer_margin = egui::style::Margin::symmetric(x_margin, heading_text_style.size);
-
-            if is_waiting {
-                ui.themed_label(
-                    bigger_text_style,
-                    &params.localization.get("waiting-for-map"),
-                );
-            } else {
-                BorderedFrame::new(&params.game.ui_theme.panel.border)
-                    .margin(outer_margin)
-                    .padding(params.game.ui_theme.panel.padding.into())
-                    .show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-
-                        let mut first_button = true;
-
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            for (section_title, map_handles) in [
-                                (
-                                    &params.localization.get("default-maps"),
-                                    &params.core.stable_maps,
-                                ),
-                                (
-                                    &params.localization.get("experimental-maps"),
-                                    &params.core.experimental_maps,
-                                ),
-                            ] {
-                                if map_handles.is_empty() {
-                                    continue;
-                                }
-                                ui.add_space(bigger_text_style.size / 2.0);
-                                ui.themed_label(bigger_text_style, section_title);
-
-                                // Clippy lint is a false alarm, necessary to avoid borrowing params
-                                #[allow(clippy::unnecessary_to_owned)]
-                                for map_handle in map_handles.to_vec().into_iter() {
-                                    let map_meta = params
-                                        .map_assets
-                                        .get(&map_handle.get_bevy_handle())
-                                        .expect("Error loading map");
-                                    ui.add_space(ui.spacing().item_spacing.y);
-
-                                    let mut button =
-                                        BorderedButton::themed(small_button_style, &map_meta.name)
-                                            .show(ui);
-
-                                    if first_button {
-                                        first_button = false;
-                                        button = button.focus_by_default(ui);
-                                    }
-
-                                    if button.clicked() {
-                                        *params.pause_page = PauseMenuPage::Default;
-                                        *params.menu_page = MenuPage::Home;
-
-                                        // TODO: This code to start a game is duplicated 3 or 4
-                                        // times throughout this file, which isn't good. We should
-                                        // try to abstract it into a function or something.
-                                        let mut player_info = <[Option<GameSessionPlayerInfo>;
-                                            MAX_PLAYERS]>::default(
-                                        );
-                                        (0..MAX_PLAYERS).for_each(|i| {
-                                            let slot = &params.player_select_state.slots[i];
-                                            if slot.active {
-                                                player_info[i] = Some(GameSessionPlayerInfo {
-                                                    player: slot.selected_player.clone(),
-                                                    hat: slot.selected_hat.clone(),
-                                                    is_ai: slot.is_ai,
-                                                });
-                                            }
-                                        });
-                                        let core_info = CoreSessionInfo {
-                                            meta: params.core.0.clone(),
-                                            map_meta: map_meta.clone(),
-                                            player_info,
-                                        };
-                                        #[cfg(not(target_arch = "wasm32"))]
-                                        if let Some(socket) = &params.network_socket {
-                                            info!("Selected map, starting network game");
-                                            params.session_manager.start_network(
-                                                core_info,
-                                                GgrsSessionRunnerInfo {
-                                                    socket: socket.ggrs_socket(),
-                                                    player_is_local: socket.player_is_local(),
-                                                    player_count: socket.player_count(),
-                                                },
-                                            );
-                                        } else {
-                                            info!("Selected map, starting game");
-                                            params.session_manager.start_local(core_info);
-                                        }
-                                        #[cfg(target_arch = "wasm32")]
-                                        {
-                                            info!("Selected map, starting game");
-                                            params.session_manager.start_local(core_info);
-                                        }
-
-                                        params
-                                            .commands
-                                            .insert_resource(NextState(Some(EngineState::InGame)));
-                                        params
-                                            .commands
-                                            .insert_resource(NextState(Some(InGameState::Playing)));
-
-                                        #[cfg(not(target_arch = "wasm32"))]
-                                        if let Some(socket) = &params.network_socket {
-                                            socket.send_reliable(
-                                                SocketTarget::All,
-                                                &postcard::to_allocvec(
-                                                    &MapSelectMessage::SelectMap(map_handle),
-                                                )
-                                                .unwrap(),
-                                            );
-                                        }
-                                    }
-                                }
-
-                                let user_maps: Option<UserMapStorage> =
-                                    params.storage.get(UserMapStorage::STORAGE_KEY);
-                                if let Some(user_maps) = user_maps {
-                                    #[cfg(not(target_arch = "wasm32"))]
-                                    let is_network = params.network_socket.is_some();
-                                    #[cfg(target_arch = "wasm32")]
-                                    let is_network = false;
-
-                                    // For now, network games can only play core maps.
-                                    ui.set_enabled(!is_network);
-                                    ui.add_space(bigger_text_style.size / 2.0);
-                                    ui.themed_label(
-                                        bigger_text_style,
-                                        &params.localization.get("user-maps"),
-                                    );
-
-                                    let mut maps =
-                                        user_maps.0.clone().into_iter().collect::<Vec<_>>();
-                                    maps.sort_by(|a, b| a.0.cmp(&b.0));
-
-                                    for (name, map_meta) in maps {
-                                        ui.add_space(ui.spacing().item_spacing.y);
-                                        let button =
-                                            BorderedButton::themed(small_button_style, &name)
-                                                .show(ui);
-                                        if button.clicked() {
-                                            *params.pause_page = PauseMenuPage::Default;
-                                            *params.menu_page = MenuPage::Home;
-
-                                            let mut player_info = <[Option<GameSessionPlayerInfo>;
-                                                MAX_PLAYERS]>::default(
-                                            );
-                                            (0..MAX_PLAYERS).for_each(|i| {
-                                                let slot = &params.player_select_state.slots[i];
-                                                if slot.active {
-                                                    player_info[i] = Some(GameSessionPlayerInfo {
-                                                        player: slot.selected_player.clone(),
-                                                        hat: slot.selected_hat.clone(),
-                                                        is_ai: slot.is_ai,
-                                                    });
-                                                }
-                                            });
-                                            params.session_manager.start_local(CoreSessionInfo {
-                                                meta: params.core.0.clone(),
-                                                map_meta,
-                                                player_info,
-                                            });
-                                            params.commands.insert_resource(NextState(Some(
-                                                EngineState::InGame,
-                                            )));
-                                            params.commands.insert_resource(NextState(Some(
-                                                InGameState::Playing,
-                                            )));
-                                        };
-                                    }
-                                }
-                            }
-                        });
-                    });
-            }
-        });
+/// Send a MapSelectMessage over network if local player has selected a map.
+#[cfg(not(target_arch = "wasm32"))]
+fn replicate_map_select_action(
+    action: &MapSelectAction,
+    socket: &Option<Res<NetworkMatchSocket>>,
+    asset_server: &AssetServer,
+) {
+    use bones_framework::networking::SocketTarget;
+    if let Some(socket) = socket {
+        if let MapSelectAction::SelectMap(maps) = action {
+            info!("Sending network SelectMap message.");
+            socket.send_reliable(
+                SocketTarget::All,
+                &postcard::to_allocvec(&MapSelectMessage::SelectMap(
+                    maps.into_network(asset_server),
+                ))
+                .unwrap(),
+            );
+        }
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn handle_match_setup_messages(params: &mut MapSelectMenu) {
-    if let Some(socket) = &params.network_socket {
-        let datas: Vec<(usize, Vec<u8>)> = socket.recv_reliable();
+fn handle_match_setup_messages(
+    socket: &Option<Res<NetworkMatchSocket>>,
+    asset_server: &AssetServer,
+) -> Option<MapSelectAction> {
+    if let Some(socket) = socket {
+        let datas: Vec<(u32, Vec<u8>)> = socket.recv_reliable();
 
-        for (player, data) in datas {
+        for (_player, data) in datas {
             match postcard::from_bytes::<MapSelectMessage>(&data) {
                 Ok(message) => match message {
-                    MapSelectMessage::SelectMap(map_handle) => {
-                        assert_eq!(player, 0, "Only player 0 may select the map.");
-                        info!("Other player selected map, starting game");
-                        *params.pause_page = PauseMenuPage::Default;
-                        *params.menu_page = MenuPage::Home;
+                    MapSelectMessage::SelectMap(maps) => {
+                        info!("Map select message received, starting game");
 
-                        let map_meta = params
-                            .map_assets
-                            .get(&map_handle.get_bevy_handle())
-                            .unwrap()
-                            .clone();
-
-                        let mut player_info =
-                            <[Option<GameSessionPlayerInfo>; MAX_PLAYERS]>::default();
-                        (0..MAX_PLAYERS).for_each(|i| {
-                            let slot = &params.player_select_state.slots[i];
-                            if slot.active {
-                                player_info[i] = Some(GameSessionPlayerInfo {
-                                    player: slot.selected_player.clone(),
-                                    hat: slot.selected_hat.clone(),
-                                    is_ai: slot.is_ai,
-                                });
-                            }
-                        });
-                        params.session_manager.start_network(
-                            CoreSessionInfo {
-                                meta: params.core.0.clone(),
-                                map_meta,
-                                player_info,
-                            },
-                            GgrsSessionRunnerInfo {
-                                socket: socket.ggrs_socket(),
-                                player_is_local: socket.player_is_local(),
-                                player_count: socket.player_count(),
-                            },
-                        );
-                        params
-                            .commands
-                            .insert_resource(NextState(Some(EngineState::InGame)));
-                        params
-                            .commands
-                            .insert_resource(NextState(Some(InGameState::Playing)));
+                        return Some(MapSelectAction::SelectMap(MapPool::from_network(
+                            maps,
+                            asset_server,
+                        )));
                     }
                 },
                 Err(e) => {
                     // TODO: The second player in an online match is having this triggered by
                     // picking up a `ConfirmSelection` message, that might have been sent to
                     // _itself_.
-                    warn!("Ignoring network message that was not understood: {e}");
+                    warn!("Ignoring network message that was not understood: {e} data: {data:?}");
                 }
             }
         }
     }
+
+    None
 }

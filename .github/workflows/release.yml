@@ -1,9 +1,6 @@
 name: 🚀 Release
 
 on:
-  schedule:
-    # Run every night
-    - cron: "0 4 * * *"
   workflow_dispatch:
   push:
     tags:
@@ -114,7 +111,7 @@ jobs:
           tar -czvf $artifact_path $release_dir/
 
       - name: ⏫️ Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_PATH }}
           path: ${{ env.ARTIFACT_PATH }}
@@ -129,7 +126,7 @@ jobs:
 
     steps:
       - name: ⬇️ Download Artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
 
       - name: 🔒 Generate Checksums
         run: for file in jumpy-*/jumpy-*; do openssl dgst -sha256 -r "$file" | awk '{print $1}' > "${file}.sha256"; done
